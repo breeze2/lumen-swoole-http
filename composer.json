@@ -1,0 +1,29 @@
+{
+    "name": "breeze2/lumen-swoole-http",
+    "description": "lumen swoole http server",
+    "keywords": ["lumen", "swoole", "performance"],
+    "type": "library",
+    "version": "0.0.1",
+    "license": "MIT",
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "authors": [
+        {
+            "name": "breezelin",
+            "email": "805511939@qq.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.0.0",
+        "ext-swoole" : ">=1.9.0",
+        "laravel/lumen-framework":">=5.5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "BL\\SwooleHttp\\": "src/"
+        }
+    },
+    "bin": [
+        "bin/swoole-http"
+    ]
+}
