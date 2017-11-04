@@ -2,26 +2,30 @@
 namespace BL\SwooleHttp;
 
 use Illuminate\Http\Request as IlluminateHttpRequest;
-use Illuminate\Http\Response as IlluminateHttpResponse;
+use Laravel\Lumen\Application;
 use swoole_http_server as SwooleHttpServer;
+use Symfony\Component\HttpFoundation\BinaryFileResponse as SymfonyBinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class Service
 {
-
     protected $app;
-    protected $pidFile;
     protected $server;
+    protected $root;
+    protected $bootstrap;
     // protected $host;
     // protected $port;
-    // protected $settings;
+    protected $config;
+    protected $setting;
 
-    public function __construct(Application $app, $config)
+    public function __construct(Application $app, array $config, array $setting)
     {
-        $this->app = $app;
-        $this->pidFile = $config['pid_file'];
+        $this->app     = $app;
+        $this->config  = $config;
+        $this->setting = $setting;
         $this->server  = new SwooleHttpServer($config['host'], $config['port']);
-        if (isset($config['swoole_settings']) && !empty($config['swoole_settings'])) {
-            $this->server->set($config['swoole_settings']);
+        if (isset($setting) && !empty($setting)) {
+            $this->server->set($setting);
         }
     }
 
@@ -39,36 +43,42 @@ class Service
 
     public function onStart($serv)
     {
-        file_put_contents(
-            $this->pidFile,
-            $serv->master_pid
-        );
+        $file = $this->config['pid_file'];
+        file_put_contents($file, $serv->master_pid);
     }
 
     public function onShutdown()
     {
-        unlink($this->pidFile);
+        $file = $this->config['pid_file'];
+        unlink($file);
     }
 
     public function onWorkerStart($serv, $worker_id)
     {
-
+        $this->reloadApplication();
     }
 
     public function onRequest($request, $response)
     {
+        if ($this->config['static_resources']) {
+            if ($this->staticResource($request, $response)) {
+                return;
+            }
+        }
         try {
-            $http_request = $this->parseRequest($request);
+            $http_request  = $this->parseRequest($request);
             $http_response = $this->app->dispatch($http_request);
 
             // Is gzip enabled and the client accept it?
-            $accept_gzip = 1 && isset($request->header['accept-encoding']) && stripos($request->header['accept-encoding'], 'gzip') !== false;
+            $accept_gzip = $this->config['gzip'] > 0 && isset($request->header['accept-encoding']) && stripos($request->header['accept-encoding'], 'gzip') !== false;
 
-            if ($http_response instanceof IlluminateHttpResponse) {
+            if ($http_response instanceof SymfonyBinaryFileResponse) {
+                $response->sendfile($http_response->getFile());
+            } else if ($http_response instanceof SymfonyResponse) {
                 $this->makeResponse($response, $http_response, $accept_gzip);
             } else {
                 //echo (string) $response;
-                $response->end((string)$http_response);
+                $response->end((string) $http_response);
             }
 
         } catch (ErrorException $e) {
@@ -84,12 +94,12 @@ class Service
 
     protected function parseRequest($request)
     {
-        $get = isset($request->get) ? $request->get : array();
-        $post = isset($request->post) ? $request->post : array();
-        $cookie = isset($request->cookie) ? $request->cookie : array();
-        $server = isset($request->server) ? $request->server : array();
-        $header = isset($request->header) ? $request->header : array();
-        $files = isset($request->files) ? $request->files : array();
+        $get     = isset($request->get) ? $request->get : array();
+        $post    = isset($request->post) ? $request->post : array();
+        $cookie  = isset($request->cookie) ? $request->cookie : array();
+        $server  = isset($request->server) ? $request->server : array();
+        $header  = isset($request->header) ? $request->header : array();
+        $files   = isset($request->files) ? $request->files : array();
         $fastcgi = array();
 
         // merge headers into server which are filtered ed by swoole
@@ -142,15 +152,58 @@ class Service
         $content = $http_response->getContent();
 
         // check gzip
-        if($accept_gzip && isset($response->header['Content-Type'])) {
+        if ($accept_gzip && isset($response->header['Content-Type'])) {
             $mime = $response->header['Content-Type'];
-            if(strlen($content) > $this->gzip_min_length && is_mime_gzip($mime)) {
-                $response->gzip($this->gzip);
+            if (strlen($content) > $this->config['gzip_min_length'] && $this->checkGzipMime($mime)) {
+                $response->gzip($this->config['gzip']);
             }
         }
 
         // send content & close
         $response->end($content);
+    }
+
+    protected function staticResource($request, $response)
+    {
+        $public_dir = $this->config['public_dir'];
+        $uri        = $request->server['request_uri'];
+        $file       = realpath($public_dir . $uri);
+        if (is_file($file)) {
+            if (!strncasecmp($file, $uri, strlen($public_dir))) {
+                $response->status(403);
+                $response->end();
+            } else {
+                $response->header('Content-Type', mime_content_type($file));
+                $response->sendfile($file);
+            }
+            return true;
+
+        }
+        return false;
+    }
+
+    protected function checkGzipMime($mime)
+    {
+        static $mimes = [
+            'text/plain'             => true,
+            'text/html'              => true,
+            'text/css'               => true,
+            'application/javascript' => true,
+            'application/json'       => true,
+            'application/xml'        => true,
+        ];
+        if ($pos = strpos($mime, ';')) {
+            $mime = substr($mime, 0, $pos);
+        }
+        return isset($mimes[strtolower($mime)]);
+    }
+
+    protected function reloadApplication()
+    {
+        $root_dir  = $this->config['root_dir'];
+        $bootstrap = $this->config['bootstrap'];
+        require $root_dir . '/vendor/autoload.php';
+        $this->app = require $bootstrap;
     }
 
 }

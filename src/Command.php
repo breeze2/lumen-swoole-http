@@ -3,23 +3,42 @@ namespace BL\SwooleHttp;
 
 class Command
 {
-    const VERSION = 'lumen-swoole-http 0.1.0';
+    const VERSION       = 'lumen-swoole-http 0.1.0';
     const CONFIG_PREFIX = 'SWOOLE_HTTP_';
 
     protected $lumen;
+    protected $bootstrap;
     protected $config;
+    protected $setting;
     protected $pidFile;
     protected $service;
 
     private function __construct()
     {
-        $this->lumen = require dirname(LUMENSWOOLEHTTP_COMPOSER_INSTALL) . '/../bootstrap/swoole.php';
-        $this->config = $this->initializeConfig();
+        $this->checkBootstrap();
+        $this->lumen   = require $this->bootstrap;
+        $this->config  = $this->initializeConfig();
+        $this->setting = $this->initializeSetting();
         $this->pidFile = $this->config['pid_file'];
 
     }
 
-    private function initializeConfig()
+    private function checkBootstrap($file = 'swoole.php')
+    {
+        $bootstrap_path = dirname(LUMENSWOOLEHTTP_COMPOSER_INSTALL) . '/../bootstrap/';
+        $bootstrap_file = $bootstrap_path . $file;
+        if (file_exists($bootstrap_file)) {
+            $this->bootstrap = $bootstrap_file;
+            return true;
+        } else {
+            echo 'please copy ' . realpath($bootstrap_path) . '/' . $file . PHP_EOL;
+            echo 'to ' . realpath($bootstrap_path) . '/' . PHP_EOL;
+            exit(1);
+        }
+        return false;
+    }
+
+    private function initializeSetting()
     {
         $params = array(
             'reactor_num',
@@ -72,29 +91,34 @@ class Command
             'reload_async',
             'tcp_fastopen',
         );
-        $settings = array();
+        $setting = array();
         foreach ($params as $param) {
-            $key = self::CONFIG_PREFIX . strtoupper($param);
+            $key   = self::CONFIG_PREFIX . strtoupper($param);
             $value = env($key);
             if ($value !== null) {
-                $settings[$param] = $value;
+                $setting[$param] = $value;
             }
         }
 
-        $config['worker_num'] = env(self::CONFIG_PREFIX . 'WORK_NUM', 1);
-        $config['max_conn'] = env(self::CONFIG_PREFIX . 'MAX_CONN', 2000);
-        $config['daemonize'] = env(self::CONFIG_PREFIX . 'DAEMONIZE', false);
-        $config['log_file'] = env(self::CONFIG_PREFIX . 'LOG_FILE', storage_path('logs/swoole-http.log'));
+        $setting['worker_num'] = env(self::CONFIG_PREFIX . 'WORK_NUM', 1);
+        $setting['max_conn']   = env(self::CONFIG_PREFIX . 'MAX_CONN', 255);
+        $setting['daemonize']  = env(self::CONFIG_PREFIX . 'DAEMONIZE', true);
+        $setting['log_file']   = env(self::CONFIG_PREFIX . 'LOG_FILE', storage_path('logs/swoole-http.log'));
 
+        return $setting;
+    }
 
-        $config['swoole_settings'] = $settings;
-        $config['host'] = env(self::CONFIG_PREFIX . 'HOST', '127.0.0.1');
-        $config['port'] = env(self::CONFIG_PREFIX . 'PORT', 9050);
-        $config['gzip'] = env(self::CONFIG_PREFIX . 'GZIP', true);
-        $config['gzip_min_length'] = env(self::CONFIG_PREFIX . 'GZIP_MIN_LENGTH', 1024);
-        $config['deal_with_public'] = env(self::CONFIG_PREFIX . 'DEAL_WITH_PUBLIC', false);
-        $config['pid_file'] = env(self::CONFIG_PREFIX . 'PID_FILE', storage_path('app/swoole-http.pid'));
-        $config['root_dir'] = base_path();
+    private function initializeConfig()
+    {
+        $config['host']             = env(self::CONFIG_PREFIX . 'HOST', '127.0.0.1');
+        $config['port']             = env(self::CONFIG_PREFIX . 'PORT', 9050);
+        $config['gzip']             = env(self::CONFIG_PREFIX . 'GZIP', 1);
+        $config['gzip_min_length']  = env(self::CONFIG_PREFIX . 'GZIP_MIN_LENGTH', 1024);
+        $config['static_resources'] = env(self::CONFIG_PREFIX . 'STATIC_RESOURCES', false);
+        $config['pid_file']         = env(self::CONFIG_PREFIX . 'PID_FILE', storage_path('app/swoole-http.pid'));
+        $config['root_dir']         = base_path();
+        $config['public_dir']       = base_path('public');
+        $config['bootstrap']        = $this->bootstrap;
         return $config;
     }
 
@@ -107,10 +131,10 @@ class Command
 
             case 'stop':
                 $this->stopService();
-            
+
             case 'restart':
                 $this->restartService();
-            
+
             case 'reload':
                 $this->reloadService();
 
@@ -123,37 +147,61 @@ class Command
     protected function startService()
     {
         if ($this->getPid()) {
-            echo 'umen-swoole-http is already running' . PHP_EOL;
+            echo 'lumen-swoole-http is already running' . PHP_EOL;
             exit(1);
         }
 
-        $service = new Service($this->lumen, $this->config);
+        $service = new Service($this->lumen, $this->config, $this->setting);
         $service->start();
     }
 
     protected function restartService()
     {
-        echo storage_path('app');
+        $time = 0;
+        $pid  = $this->getPid();
+        $this->sendSignal(SIGTERM);
+        while (posix_getpgid($pid) && $time <= 10) {
+            sleep(1);
+            $time++;
+        }
+        if ($time > 10 && posix_getpgid($pid)) {
+            echo 'lumen-swoole-http stop timeout' . PHP_EOL;
+            exit(1);
+        }
+        $this->startService();
     }
 
     protected function reloadService()
     {
-        echo storage_path('app');
+        $this->sendSignal(SIGUSR1);
     }
 
     protected function stopService()
     {
-        echo storage_path('app');
+        $time = 0;
+        $pid  = $this->getPid();
+        $this->sendSignal(SIGTERM);
+        while (posix_getpgid($pid) && $time <= 10) {
+            sleep(1);
+            $time++;
+        }
+        if ($time > 10 && posix_getpgid($pid)) {
+            echo 'lumen-swoole-http stop timeout' . PHP_EOL;
+            exit(1);
+        }
+        exit(0);
     }
 
     protected function sendSignal($signal)
     {
         if ($pid = $this->getPid()) {
-            posix_kill($pid, $sig);
+            posix_kill($pid, $signal);
+            return true;
         } else {
-            echo "umen-swoole-http is not running!" . PHP_EOL;
+            echo 'lumen-swoole-http is not running!' . PHP_EOL;
             exit(1);
         }
+        return false;
     }
 
     protected function getPid()
