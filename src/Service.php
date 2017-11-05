@@ -69,16 +69,18 @@ class Service
             $http_request  = $this->parseRequest($request);
             $http_response = $this->app->dispatch($http_request);
 
-            // Is gzip enabled and the client accept it?
-            $accept_gzip = $this->config['gzip'] > 0 && isset($request->header['accept-encoding']) && stripos($request->header['accept-encoding'], 'gzip') !== false;
-
             if ($http_response instanceof SymfonyBinaryFileResponse) {
                 $response->sendfile($http_response->getFile());
+
             } else if ($http_response instanceof SymfonyResponse) {
+                // Is gzip enabled and the client accept it?
+                $accept_gzip = $this->config['gzip'] > 0 && isset($request->header['accept-encoding']) && stripos($request->header['accept-encoding'], 'gzip') !== false;
+
                 $this->makeResponse($response, $http_response, $accept_gzip);
+
             } else {
-                //echo (string) $response;
                 $response->end((string) $http_response);
+
             }
 
         } catch (ErrorException $e) {
@@ -117,7 +119,7 @@ class Service
         }
 
         // override $_SERVER, for many packages use the raw variable
-        // $_SERVER = array_merge($this->_SERVER, $new_server);
+        // $_SERVER = $new_server;
 
         $content = $request->rawContent() ?: null;
 
