@@ -60,6 +60,12 @@ class Service
 
     public function onRequest($request, $response)
     {
+        if ($this->config['stats'] && $request->server['request_uri'] === $this->config['stats_uri']) {
+            if ($this->statsResource($request, $response)) {
+                return;
+            }
+        }
+
         if ($this->config['static_resources']) {
             if ($this->staticResource($request, $response)) {
                 return;
@@ -182,6 +188,13 @@ class Service
 
         }
         return false;
+    }
+
+    protected function statsResource($request, $response)
+    {
+        $stats = $this->server->stats();
+        $response->end(json_encode($stats));
+        return true;
     }
 
     protected function checkGzipMime($mime)
