@@ -114,11 +114,8 @@ class Service
             $new_server[strtoupper($key)] = $value;
         }
         foreach ($header as $key => $value) {
-            $new_server[strtoupper(str_replace('-', '_', 'http_' . $key))] = $value;
+            $new_server['HTTP_' . str_to_upper($key)] = $value;
         }
-
-        // override $_SERVER, for many packages use the raw variable
-        // $_SERVER = $new_server;
 
         $content = $request->rawContent() ?: null;
 
@@ -251,4 +248,11 @@ class Service
         $this->app = require $bootstrap;
     }
 
+}
+
+function str_to_upper($subject)
+{
+    static $search = array('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','-');
+    static $replace = array('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','_');
+    return str_replace($search, $replace, $subject);
 }

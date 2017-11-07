@@ -112,7 +112,7 @@ class Command
     private function initializeConfig()
     {
         $config['host']             = env(self::CONFIG_PREFIX . 'HOST', '127.0.0.1');
-        $config['port']             = env(self::CONFIG_PREFIX . 'PORT', 9050);
+        $config['port']             = env(self::CONFIG_PREFIX . 'PORT', 9080);
         $config['gzip']             = env(self::CONFIG_PREFIX . 'GZIP', 1);
         $config['gzip_min_length']  = env(self::CONFIG_PREFIX . 'GZIP_MIN_LENGTH', 1024);
         $config['static_resources'] = env(self::CONFIG_PREFIX . 'STATIC_RESOURCES', false);
