@@ -1,7 +1,7 @@
 <?php
 namespace BL\SwooleHttp;
 
-use Illuminate\Http\Request as IlluminateHttpRequest;
+use Illuminate\Http\Request as IlluminateRequest;
 use Laravel\Lumen\Application;
 use swoole_http_server as SwooleHttpServer;
 use Symfony\Component\HttpFoundation\BinaryFileResponse as SymfonyBinaryFileResponse;
@@ -18,6 +18,9 @@ class Service
     protected $config;
     protected $setting;
 
+    protected $workLogFile;
+    protected $workLogFileStream;
+
     public function __construct(Application $app, array $config, array $setting)
     {
         $this->app     = $app;
@@ -33,7 +36,8 @@ class Service
     {
         $this->server->on('start', array($this, 'onStart'));
         $this->server->on('shutdown', array($this, 'onShutdown'));
-        $this->server->on('WorkerStart', array($this, 'onWorkerStart'));
+        $this->server->on('workerStart', array($this, 'onWorkerStart'));
+        $this->server->on('workerStop', array($this, 'onWorkerStop'));
         $this->server->on('request', array($this, 'onRequest'));
 
         // require __DIR__ . '/mime.php';
@@ -56,12 +60,25 @@ class Service
     public function onWorkerStart($serv, $worker_id)
     {
         $this->reloadApplication();
+        if ($this->config['request_log_path']) {
+            $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d_H:i') . '.log';
+            @$this->workLogFileStream = fopen($this->workLogFile, 'a');
+        }
+    }
+
+    public function onWorkerStop($serv, $worker_id)
+    {
+        if ($this->workLogFileStream) {
+            @fclose($this->workLogFileStream);
+            $this->workLogFile       = null;
+            $this->workLogFileStream = null;
+        }
     }
 
     public function onRequest($request, $response)
     {
         if ($this->config['stats'] && $request->server['request_uri'] === $this->config['stats_uri']) {
-            if ($this->statsResource($request, $response)) {
+            if ($this->statsJson($request, $response)) {
                 return;
             }
         }
@@ -72,31 +89,13 @@ class Service
             }
         }
         try {
-            $http_request  = $this->parseRequest($request);
-            $http_response = $this->app->dispatch($http_request);
-
-            if ($http_response instanceof SymfonyBinaryFileResponse) {
-                $response->sendfile($http_response->getFile());
-
-            } else if ($http_response instanceof SymfonyResponse) {
-                // Is gzip enabled and the client accept it?
-                $accept_gzip = $this->config['gzip'] > 0 && isset($request->header['accept-encoding']) && stripos($request->header['accept-encoding'], 'gzip') !== false;
-
-                $this->makeResponse($response, $http_response, $accept_gzip);
-
-            } else {
-                $response->end((string) $http_response);
-
-            }
+            $this->lumenResponse($request, $response);
 
         } catch (ErrorException $e) {
             if (strncmp($e->getMessage(), 'swoole_', 7) === 0) {
                 fwrite(STDOUT, $e->getFile() . '(' . $e->getLine() . '): ' . $e->getMessage() . PHP_EOL);
             }
-        } finally {
-            if (count($this->app->getMiddleware()) > 0) {
-                $this->app->callTerminableMiddleware($http_response);
-            }
+            // do nothing
         }
     }
 
@@ -110,18 +109,12 @@ class Service
         $files   = isset($request->files) ? $request->files : array();
         $fastcgi = array();
 
-        // merge headers into server which are filtered ed by swoole
-        // make a new array when php 7 has different behavior on foreach
-        $new_header = array();
-        foreach ($header as $key => $value) {
-            $new_header['http_' . $key] = $value;
-        }
-        $server = array_merge($server, $new_header);
-
         $new_server = array();
-        // swoole has changed all keys to lower case
         foreach ($server as $key => $value) {
             $new_server[strtoupper($key)] = $value;
+        }
+        foreach ($header as $key => $value) {
+            $new_server[strtoupper(str_replace('-', '_', 'http_' . $key))] = $value;
         }
 
         // override $_SERVER, for many packages use the raw variable
@@ -129,7 +122,7 @@ class Service
 
         $content = $request->rawContent() ?: null;
 
-        $http_request = new IlluminateHttpRequest($get, $post, $fastcgi, $cookie, $files, $new_server, $content);
+        $http_request = new IlluminateRequest($get, $post, $fastcgi, $cookie, $files, $new_server, $content);
 
         return $http_request;
     }
@@ -167,8 +160,31 @@ class Service
             }
         }
 
-        // send content & close
+        // send content
         $response->end($content);
+    }
+
+    protected function lumenResponse($request, $response)
+    {
+        $http_request  = $this->parseRequest($request);
+        $http_response = $this->app->dispatch($http_request);
+
+        if ($http_response instanceof SymfonyBinaryFileResponse) {
+            $response->sendfile($http_response->getFile());
+
+        } else if ($http_response instanceof SymfonyResponse) {
+            // gzip handle
+            $accept_gzip = $this->config['gzip'] > 0 && isset($request->header['accept-encoding']) && stripos($request->header['accept-encoding'], 'gzip') !== false;
+
+            $this->makeResponse($response, $http_response, $accept_gzip);
+            if (count($this->app->getMiddleware()) > 0) {
+                $this->app->callTerminableMiddleware($http_response);
+            }
+        } else {
+            $response->end((string) $http_response);
+
+        }
+        $this->logHttpRequest($request, $http_response->getStatusCode());
     }
 
     protected function staticResource($request, $response)
@@ -176,24 +192,30 @@ class Service
         $public_dir = $this->config['public_dir'];
         $uri        = $request->server['request_uri'];
         $file       = realpath($public_dir . $uri);
+        $status     = 200;
         if (is_file($file)) {
             if (!strncasecmp($file, $uri, strlen($public_dir))) {
-                $response->status(403);
+                $status = 403;
+                $response->status($status);
                 $response->end();
             } else {
+                $status = 200;
+                $response->status($status);
                 $response->header('Content-Type', mime_content_type($file));
                 $response->sendfile($file);
             }
             return true;
-
+            $this->logHttpRequest($request, $status);
         }
         return false;
     }
 
-    protected function statsResource($request, $response)
+    protected function statsJson($request, $response)
     {
         $stats = $this->server->stats();
+        $response->header('Content-Type', 'application/json');
         $response->end(json_encode($stats));
+        $this->logHttpRequest($request, 200);
         return true;
     }
 
@@ -211,6 +233,14 @@ class Service
             $mime = substr($mime, 0, $pos);
         }
         return isset($mimes[strtolower($mime)]);
+    }
+
+    protected function logHttpRequest($request, $status)
+    {
+        if ($this->workLogFileStream) {
+            $log = array_merge($request->header, $request->server, array('status' => $status));
+            @fwrite($this->workLogFileStream, json_encode($log) . "\n");
+        }
     }
 
     protected function reloadApplication()

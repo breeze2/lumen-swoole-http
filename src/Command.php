@@ -119,6 +119,7 @@ class Command
         $config['pid_file']         = env(self::CONFIG_PREFIX . 'PID_FILE', storage_path('app/swoole-http.pid'));
         $config['stats']            = env(self::CONFIG_PREFIX . 'STATS', true);
         $config['stats_uri']        = env(self::CONFIG_PREFIX . 'STATS_URI', '/swoole-http-stats');
+        $config['request_log_path'] = realpath(env(self::CONFIG_PREFIX . 'REQUEST_LOG_PATH'));
         $config['root_dir']         = base_path();
         $config['public_dir']       = base_path('public');
         $config['bootstrap']        = $this->bootstrap;
