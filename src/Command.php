@@ -131,14 +131,21 @@ class Command
                 $this->startService();
                 break;
 
+            case 'status':
+                $this->checkService();
+                break;
+
             case 'stop':
                 $this->stopService();
+                break;
 
             case 'restart':
                 $this->restartService();
+                break;
 
             case 'reload':
                 $this->reloadService();
+                break;
 
             default:
                 # code...
@@ -192,6 +199,16 @@ class Command
             exit(1);
         }
         exit(0);
+    }
+
+    protected function checkService()
+    {
+        $pid = $this->getPid();
+        if($pid) {
+            echo 'lumen-swoole-http is running!' . PHP_EOL;
+        } else {
+            echo 'lumen-swoole-http is not running!' . PHP_EOL;
+        }
     }
 
     protected function sendSignal($signal)
