@@ -100,7 +100,7 @@ class Command
             }
         }
 
-        $setting['worker_num']  = env(self::CONFIG_PREFIX . 'WORK_NUM', 1);
+        $setting['worker_num']  = env(self::CONFIG_PREFIX . 'WORKER_NUM', 1);
         $setting['max_conn']    = env(self::CONFIG_PREFIX . 'MAX_CONNECTIOIN') ?: env(self::CONFIG_PREFIX . 'MAX_CONN', 255);
         $setting['daemonize']   = env(self::CONFIG_PREFIX . 'DAEMONIZE', true);
         $setting['log_file']    = env(self::CONFIG_PREFIX . 'LOG_FILE', storage_path('logs/swoole-http.log'));
