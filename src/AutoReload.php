@@ -50,7 +50,7 @@ class AutoReload
             if (!$events) {
                 return;
             }
-            var_dump($events);
+            // var_dump($events);
             foreach ($events as $ev) {
                 if ($ev['mask'] == IN_IGNORED) {
                     continue;
@@ -142,7 +142,7 @@ class AutoReload
             $path = $dir . '/' . $f;
             //递归目录
             if (is_dir($path)) {
-                $this->watch($path, false);
+                @$this->watch($path, false);
             }
             //检测文件类型
             $fileType = strrchr($f, '.');
