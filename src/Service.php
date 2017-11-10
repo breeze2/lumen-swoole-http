@@ -61,7 +61,8 @@ class Service
     {
         $this->reloadApplication();
         if ($this->config['request_log_path']) {
-            $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d_H:i') . '.log';
+            // $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d_H:i') . '.log';
+            $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d') . '.log';
             @$this->workLogFileStream = fopen($this->workLogFile, 'a');
         }
     }
