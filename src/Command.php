@@ -149,7 +149,8 @@ class Command
                 break;
 
             default:
-                # code...
+                echo 'lumen-swoole-http start | stop | restart | reload | status' . PHP_EOL;
+            	exit(1);
                 break;
         }
     }
