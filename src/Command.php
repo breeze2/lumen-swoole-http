@@ -31,7 +31,7 @@ class Command
             $this->bootstrap = $bootstrap_file;
             return true;
         } else {
-            echo 'please copy ' . dirname(LUMENSWOOLEHTTP_COMPOSER_INSTALL) . '/breeze2/lumen-swoole-http/bootstrap/' . $file . PHP_EOL;
+            echo 'please copy ' . realpath(dirname(LUMENSWOOLEHTTP_COMPOSER_INSTALL) . '/breeze2/lumen-swoole-http/bootstrap/') . $file . PHP_EOL;
             echo 'to ' . realpath($bootstrap_path) . '/' . PHP_EOL;
             exit(1);
         }
