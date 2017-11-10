@@ -78,7 +78,7 @@ class Service
 
     public function onRequest($request, $response)
     {
-        if ($this->config['stats'] && $request->server['request_uri'] === $this->config['stats_uri']) {
+        if ($this->config['stats_uri'] && $request->server['request_uri'] === $this->config['stats_uri']) {
             if ($this->statsJson($request, $response)) {
                 return;
             }
