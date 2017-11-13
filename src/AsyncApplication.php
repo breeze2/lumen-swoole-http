@@ -11,7 +11,7 @@ use Symfony\Bridge\PsrHttpMessage\Factory\HttpFoundationFactory;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
-class Application extends LumenApplication
+class AsyncApplication extends LumenApplication
 {
 
     public function getMiddleware()

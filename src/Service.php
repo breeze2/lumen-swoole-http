@@ -1,13 +1,14 @@
 <?php
 namespace BL\SwooleHttp;
 
+use BL\SwooleHttp\Coroutine\SimpleAsyncResponse;
+use ErrorException;
 use Generator;
 use Illuminate\Http\Request as IlluminateRequest;
 use Laravel\Lumen\Application;
 use swoole_http_server as SwooleHttpServer;
 use Symfony\Component\HttpFoundation\BinaryFileResponse as SymfonyBinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use BL\SwooleHttp\Coroutine\SimpleAsyncResponse;
 
 class Service
 {
@@ -23,9 +24,10 @@ class Service
     protected $workLogFile;
     protected $workLogFileStream;
 
-    public $coroutineNum = 0;
-    public $mysqlReadConfig = null;
+    protected $coroutineNum     = 0;
+    public $mysqlReadConfig     = null;
     public $mysqlConnectTimeout = 3;
+    public $maxCoroutineNum;
 
     public function __construct(Application $app, array $config, array $setting)
     {
@@ -67,11 +69,12 @@ class Service
     {
         $this->reloadApplication();
         if ($this->config['request_log_path']) {
-            // $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d_H:i') . '.log';
             $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d') . '.log';
             @$this->workLogFileStream = fopen($this->workLogFile, 'a');
         }
         $this->mysqlReadConfig = $this->getMySQLConfig();
+        $this->coroutineNum    = 0;
+        $this->maxCoroutineNum = $this->config['max_coroutine'];
     }
 
     public function onWorkerStop($serv, $worker_id)
@@ -100,10 +103,7 @@ class Service
             $this->lumenResponse($request, $response);
 
         } catch (ErrorException $e) {
-            if (strncmp($e->getMessage(), 'swoole_', 7) === 0) {
-                fwrite(STDOUT, $e->getFile() . '(' . $e->getLine() . '): ' . $e->getMessage() . PHP_EOL);
-            }
-            // do nothing
+            $this->logServerError($e);
         }
     }
 
@@ -173,8 +173,7 @@ class Service
     {
         $http_request  = $this->parseRequest($request);
         $http_response = $this->app->dispatch($http_request);
-        if($http_response instanceof Generator) {
-            var_dump($this->coroutineNum++);
+        if ($http_response instanceof Generator) {
             return (new SimpleAsyncResponse($http_response))->process($request, $response, $this);
         }
         return $this->directLumenResponse($request, $response, $http_response);
@@ -255,6 +254,12 @@ class Service
         }
     }
 
+    public function logServerError(ErrorException $e)
+    {
+        $prefix = sprintf("[%s #%f *%d]\tERROR\t", date('Y-m-d H:i:s'), $this->server->master_pid, $this->server->worker_id);
+        fwrite(STDOUT, sprintf('%s%s(%d): %s', $prefix, $e->getFile(), $e->getLine(), $e->getMessage()) . PHP_EOL);
+    }
+
     protected function reloadApplication()
     {
         $root_dir  = $this->config['root_dir'];
@@ -266,7 +271,7 @@ class Service
     protected function getMySQLConfig($driver = 'mysql')
     {
         $config = config('database.connections.' . $driver);
-        
+
         if (isset($config['read'])) {
             return array(
                 'host'     => isset($config['read']['host']) ? $config['read']['host'] : $config['host'],
@@ -290,11 +295,26 @@ class Service
         );
     }
 
+    public function upCoroutineNum($step = 1)
+    {
+        $this->coroutineNum = $this->coroutineNum + $step;
+    }
+
+    public function downCoroutineNum($step = 1)
+    {
+        $this->coroutineNum = $this->coroutineNum - $step;
+    }
+
+    public function canDoCoroutine()
+    {
+        return $this->maxCoroutineNum > $this->coroutineNum;
+    }
+
 }
 
 function str_to_upper($subject)
 {
-    static $search = array('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z','-');
-    static $replace = array('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','_');
+    static $search  = array('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-');
+    static $replace = array('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '_');
     return str_replace($search, $replace, $subject);
 }

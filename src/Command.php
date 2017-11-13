@@ -122,6 +122,7 @@ class Command
         $config['root_dir']         = base_path();
         $config['public_dir']       = base_path('public');
         $config['bootstrap']        = $this->bootstrap;
+        $config['max_coroutine']    = env(self::CONFIG_PREFIX . 'MAX_COROUTINE', 10);
         return $config;
     }
 

@@ -3,6 +3,7 @@
 namespace BL\SwooleHttp\Coroutine;
 
 use BL\SwooleHttp\Database\SlowQuery;
+use ErrorException;
 use Generator;
 use swoole_http_request as SwooleHttpRequest;
 use swoole_http_response as SwooleHttpResponse;
@@ -39,31 +40,21 @@ class SimpleAsyncResponse
         $parse = $this->parseValueType($current_value);
         $type  = $parse['type'];
         $sql   = $parse['sql'];
-        // if ($current_value instanceof SlowQuery) {
-        //     $type = 1;
-        //     $sql = $current_value->getSql();
-
-        //     // $last_generator->send(1);
-        //     // if (!$last_generator->valid()) {
-        //     //     $final_value = $last_generator->getReturn();
-        //     //     $final_value = $scheduler->fullRun($final_value);
-        //     //     $this->generator->send($final_value);
-        //     //     if (!$this->generator->valid()) {
-        //     //         $final_value = $this->generator->getReturn();
-        //     //         $response->end(1111);
-        //     //         var_dump($worker->coroutineNum++);
-        //     //     }
-        //     // }
-        // }
 
         if ($type) {
             $db     = new SwooleMySQL();
             $config = $worker->mysqlReadConfig;
 
             $caller = $this;
-            $db->connect($config, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
-                $caller->runAsyncSlowQueryTask($request, $response, $worker, $last_generator, $type, $sql, $db);
-            });
+            if ($worker->canDoCoroutine()) {
+                $worker->upCoroutineNum();
+                $db->connect($config, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
+                    $caller->runAsyncSlowQueryTask($request, $response, $worker, $last_generator, $type, $sql, $db);
+                });
+            } else {
+                return $this->runSlowQueryTask($request, $response, $worker, $last_generator, $type, $sql);
+            }
+
         } else {
             return $this->runNormalTask($request, $response, $worker, $last_generator);
         }
@@ -74,27 +65,17 @@ class SimpleAsyncResponse
     {
         if ($type) {
             $caller = $this;
-            var_dump($sql);
             $db->query($sql, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
                 $data = json_decode(json_encode($result));
                 if ($type === 1) {
                     $value = $data;
                 }
-                var_dump($data);
-                $last_generator->send($value);
-                // if($last_generator->valid()) {
-                //     $parse = $this->parseValueType($current_value);
-                //              $type = $parse['type'];
-                //              $sql = $parse['sql'];
-                //              $this->runAsyncSlowQueryTask($request, $response, $worker, $last_generator, $type, $sql, $db);
-                // } else {
-                //     $db->close();
-                //     $final_value = $caller->scheduler->fullRun($last_generator->getReturn());
-                //     $this->generator->valid() && $this->generator->send($final_value);
-                //     $http_response = $this->generator->getReturn();
-                //     $worker->directLumenResponse($request, $response, $http_response);
-                // }
-                $caller->inAsyncSlowQueryTaskLoop($request, $response, $worker, $last_generator, $db);
+                try {
+                    $last_generator->send($value);
+                    $caller->inAsyncSlowQueryTaskLoop($request, $response, $worker, $last_generator, $db);
+                } catch (ErrorException $e) {
+                    $caller->exceptionHandle($e, $response, $worker);
+                }
             });
         } else {
             $last_generator->send($last_generator->current());
@@ -116,12 +97,40 @@ class SimpleAsyncResponse
             $this->generator->valid() && $this->generator->send($final_value);
             $http_response = $this->generator->getReturn();
             $worker->directLumenResponse($request, $response, $http_response);
+            $worker->downCoroutineNum();
         }
     }
 
-    public function runSlowQueryTask()
+    public function runSlowQueryTask(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, $last_generator, $type, $sql)
     {
+        $value = null;
+        if ($type === 1) {
+            $value = app('db')->select($sql);
+        } else {
+            $value = $last_generator->current();
+        }
+        try {
+            $last_generator->send($value);
+            $this->inSlowQueryTaskLoop($request, $response, $worker, $last_generator);
+        } catch (ErrorException $e) {
+            $this->exceptionHandle($e, $response, $worker);
+        }
 
+    }
+
+    public function inSlowQueryTaskLoop(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, $last_generator)
+    {
+        if ($last_generator->valid()) {
+            $parse = $this->parseValueType($current_value);
+            $type  = $parse['type'];
+            $sql   = $parse['sql'];
+            $this->runSlowQueryTask($request, $response, $worker, $last_generator, $type, $sql);
+        } else {
+            $final_value = $this->scheduler->fullRun($last_generator->getReturn());
+            $this->generator->valid() && $this->generator->send($final_value);
+            $http_response = $this->generator->getReturn();
+            $worker->directLumenResponse($request, $response, $http_response);
+        }
     }
 
     public function parseValueType($value)
@@ -142,5 +151,12 @@ class SimpleAsyncResponse
         $this->generator->valid() && $this->generator->send($final_value);
         $http_response = $this->generator->getReturn();
         $worker->directLumenResponse($request, $response, $http_response);
+    }
+
+    public function exceptionHandle(ErrorException $e, SwooleHttpResponse $response, $worker)
+    {
+        $worker->logServerError($e);
+        $response->status(500);
+        $response->end('check server logs to get more info!');
     }
 }
