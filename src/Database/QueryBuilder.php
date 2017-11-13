@@ -9,6 +9,7 @@ class QueryBuilder extends Builder
 {
     public $dateFormat = 'Y-m-d H:i:s';
     public $yieldSql   = '';
+    public $yieldColumns = null;
 
     public function yieldGet($columns = ['*'])
     {
@@ -23,8 +24,13 @@ class QueryBuilder extends Builder
         $params         = $this->yieldPrepareBindings($params);
         $this->yieldSql = $this->bindSqlParams($sql, $params);
         $this->columns  = $original;
-
+        $this->yieldColumns = $columns;
         return $this;
+    }
+
+    public function getRealColumns()
+    {
+        return $this->yieldColumns;
     }
 
     public function getRealSql()

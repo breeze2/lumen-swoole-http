@@ -3,6 +3,7 @@
 namespace BL\SwooleHttp\Coroutine;
 
 use BL\SwooleHttp\Database\SlowQuery;
+use BL\SwooleHttp\Database\EloquentBuilder;
 use ErrorException;
 use Generator;
 use swoole_http_request as SwooleHttpRequest;
@@ -11,6 +12,9 @@ use swoole_mysql as SwooleMySQL;
 
 class SimpleAsyncResponse
 {
+    const YIELD_TYPE_SLOWQUERY = 1;
+    const YIELD_TYPE_QUERYBUILDER = 2;
+
     protected $generator;
     protected $scheduler;
 
@@ -67,8 +71,11 @@ class SimpleAsyncResponse
             $caller = $this;
             $db->query($sql, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
                 $data = json_decode(json_encode($result));
-                if ($type === 1) {
+                if ($type === SimpleAsyncResponse::YIELD_TYPE_SLOWQUERY) {
                     $value = $data;
+                } else if ($type === SimpleAsyncResponse::YIELD_TYPE_QUERYBUILDER) {
+                    $value = $last_generator->current()->yieldCollect($data);
+                    var_dump($value);
                 }
                 try {
                     $last_generator->send($value);
@@ -104,8 +111,11 @@ class SimpleAsyncResponse
     public function runSlowQueryTask(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, $last_generator, $type, $sql)
     {
         $value = null;
-        if ($type === 1) {
+        if ($type === SimpleAsyncResponse::YIELD_TYPE_SLOWQUERY) {
             $value = app('db')->select($sql);
+        } else if ($type === SimpleAsyncResponse::YIELD_TYPE_QUERYBUILDER) {
+            $current_value = $last_generator->current();
+            $value = $current_value->get($current_value->getQuery()->getRealColumns());
         } else {
             $value = $last_generator->current();
         }
@@ -138,8 +148,11 @@ class SimpleAsyncResponse
         $type = 0;
         $sql  = '';
         if ($value instanceof SlowQuery) {
-            $type = 1;
+            $type = SimpleAsyncResponse::YIELD_TYPE_SLOWQUERY;
             $sql  = $value->getRealSql();
+        } else if ($value instanceof EloquentBuilder) {
+            $type = SimpleAsyncResponse::YIELD_TYPE_QUERYBUILDER;
+            $sql  = $value->getQuery()->getRealSql();
         }
         return array('type' => $type, 'sql' => $sql);
     }

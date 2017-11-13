@@ -9,7 +9,7 @@ class EloquentBuilder extends Builder
     public function yieldCollect($data)
     {
         return $this->model->hydrate(
-            $data
+            collect($data)
         )->all();
     }
 }
