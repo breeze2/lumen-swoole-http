@@ -1,25 +1,31 @@
 <?php
 namespace BL\SwooleHttp;
 
+use Generator;
 use Illuminate\Http\Request as IlluminateRequest;
 use Laravel\Lumen\Application;
 use swoole_http_server as SwooleHttpServer;
 use Symfony\Component\HttpFoundation\BinaryFileResponse as SymfonyBinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use BL\SwooleHttp\Coroutine\SimpleAsyncResponse;
 
 class Service
 {
-    protected $app;
+    public $app;
     protected $server;
     protected $root;
     protected $bootstrap;
     // protected $host;
     // protected $port;
-    protected $config;
+    public $config;
     protected $setting;
 
     protected $workLogFile;
     protected $workLogFileStream;
+
+    public $coroutineNum = 0;
+    public $mysqlReadConfig = null;
+    public $mysqlConnectTimeout = 3;
 
     public function __construct(Application $app, array $config, array $setting)
     {
@@ -65,6 +71,7 @@ class Service
             $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d') . '.log';
             @$this->workLogFileStream = fopen($this->workLogFile, 'a');
         }
+        $this->mysqlReadConfig = $this->getMySQLConfig();
     }
 
     public function onWorkerStop($serv, $worker_id)
@@ -125,7 +132,7 @@ class Service
         return $http_request;
     }
 
-    protected function makeResponse($response, $http_response, $accept_gzip)
+    public function makeResponse($response, $http_response, $accept_gzip)
     {
         // status
         $response->status($http_response->getStatusCode());
@@ -166,7 +173,15 @@ class Service
     {
         $http_request  = $this->parseRequest($request);
         $http_response = $this->app->dispatch($http_request);
+        if($http_response instanceof Generator) {
+            var_dump($this->coroutineNum++);
+            return (new SimpleAsyncResponse($http_response))->process($request, $response, $this);
+        }
+        return $this->directLumenResponse($request, $response, $http_response);
+    }
 
+    public function directLumenResponse($request, $response, $http_response)
+    {
         if ($http_response instanceof SymfonyBinaryFileResponse) {
             $response->sendfile($http_response->getFile());
 
@@ -180,7 +195,6 @@ class Service
             }
         } else {
             $response->end((string) $http_response);
-
         }
         $this->logHttpRequest($request, $http_response->getStatusCode());
     }
@@ -233,7 +247,7 @@ class Service
         return isset($mimes[strtolower($mime)]);
     }
 
-    protected function logHttpRequest($request, $status)
+    public function logHttpRequest($request, $status)
     {
         if ($this->workLogFileStream) {
             $log = array_merge($request->header, $request->server, array('status' => $status));
@@ -247,6 +261,33 @@ class Service
         $bootstrap = $this->config['bootstrap'];
         require $root_dir . '/vendor/autoload.php';
         $this->app = require $bootstrap;
+    }
+
+    protected function getMySQLConfig($driver = 'mysql')
+    {
+        $config = config('database.connections.' . $driver);
+        
+        if (isset($config['read'])) {
+            return array(
+                'host'     => isset($config['read']['host']) ? $config['read']['host'] : $config['host'],
+                'port'     => isset($config['read']['port']) ? $config['read']['port'] : $config['port'],
+                'user'     => isset($config['read']['username']) ? $config['read']['username'] : $config['username'],
+                'password' => isset($config['read']['password']) ? $config['read']['password'] : $config['password'],
+                'database' => isset($config['read']['database']) ? $config['read']['database'] : $config['database'],
+                'charset'  => isset($config['read']['charset']) ? $config['read']['charset'] : $config['charset'],
+                'timeout'  => $this->mysqlConnectTimeout,
+            );
+        }
+
+        return array(
+            'host'     => $config['host'],
+            'port'     => $config['port'],
+            'user'     => $config['username'],
+            'password' => $config['password'],
+            'database' => $config['database'],
+            'charset'  => $config['charset'],
+            'timeout'  => $this->mysqlConnectTimeout,
+        );
     }
 
 }
