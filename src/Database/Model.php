@@ -11,8 +11,13 @@ class Model extends EloquentModel
     {
         $connection = $this->getConnection();
 
-        return new Builder(
+        return new QueryBuilder(
             $connection, $connection->getQueryGrammar(), $connection->getPostProcessor()
         );
+    }
+
+    public function newEloquentBuilder($query)
+    {
+        return new EloquentBuilder($query);
     }
 }

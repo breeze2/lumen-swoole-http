@@ -3,23 +3,38 @@
 namespace BL\SwooleHttp\Database;
 
 use DateTimeInterface;
-use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\Builder;
 
-class Builder extends QueryBuilder
+class QueryBuilder extends Builder
 {
     public $dateFormat = 'Y-m-d H:i:s';
+    public $yieldSql   = '';
 
-    public function yieldGet()
+    public function yieldGet($columns = ['*'])
     {
+        $original = $this->columns;
+
+        if (is_null($original)) {
+            $this->columns = $columns;
+        }
+
+        $sql            = $this->toSql();
+        $params         = $this->getBindings();
+        $params         = $this->yieldPrepareBindings($params);
+        $this->yieldSql = $this->bindSqlParams($sql, $params);
+        $this->columns  = $original;
+
         return $this;
     }
 
     public function getRealSql()
     {
-        $sql    = $this->toSql();
-        $params = $this->getBindings();
-        $params = $this->yieldPrepareBindings($params);
-        return $this->bindSqlParams($sql, $params);
+        return $this->yieldSql;
+    }
+
+    public function setRealSql($sql)
+    {
+        $this->yieldSql = $sql;
     }
 
     public function yieldPrepareBindings(array $bindings)

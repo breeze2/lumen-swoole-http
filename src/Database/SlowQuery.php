@@ -14,8 +14,9 @@ class SlowQuery
         $this->driver = $driver;
     }
 
-    public function getRealSql() {
-    	return $this->sql;
+    public function getRealSql()
+    {
+        return $this->sql;
     }
 
 }
