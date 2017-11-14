@@ -2,8 +2,8 @@
 
 namespace BL\SwooleHttp\Coroutine;
 
-use BL\SwooleHttp\Database\SlowQuery;
 use BL\SwooleHttp\Database\EloquentBuilder;
+use BL\SwooleHttp\Database\SlowQuery;
 use ErrorException;
 use Generator;
 use swoole_http_request as SwooleHttpRequest;
@@ -12,15 +12,17 @@ use swoole_mysql as SwooleMySQL;
 
 class SimpleAsyncResponse
 {
-    const YIELD_TYPE_SLOWQUERY = 1;
+    const YIELD_TYPE_SLOWQUERY    = 1;
     const YIELD_TYPE_QUERYBUILDER = 2;
 
     protected $generator;
     protected $scheduler;
+    protected $activated;
 
     public function __construct(Generator $gen)
     {
         $this->generator = $gen;
+        $this->activated = 0;
     }
 
     public function process(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, callable $callback = null)
@@ -49,10 +51,18 @@ class SimpleAsyncResponse
             $db     = new SwooleMySQL();
             $config = $worker->mysqlReadConfig;
 
-            $caller = $this;
             if ($worker->canDoCoroutine()) {
                 $worker->upCoroutineNum();
+                $this->activated = 1;
+                $caller          = $this;
                 $db->connect($config, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
+
+                    if ($result === false) {
+                        $e = new ErrorException(sprintf("Async DB: %s %s", $db->connect_errno, $db->connect_error));
+                        $caller->dbErrorHandle($request, $response, $worker, $e);
+                        return;
+                    }
+
                     $caller->runAsyncSlowQueryTask($request, $response, $worker, $last_generator, $type, $sql, $db);
                 });
             } else {
@@ -70,6 +80,13 @@ class SimpleAsyncResponse
         if ($type) {
             $caller = $this;
             $db->query($sql, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
+                if ($result === false) {
+                    $e = new ErrorException(sprintf("Async DB: %s %s", $db->errno, $db->error));
+                    $caller->dbErrorHandle($request, $response, $worker, $e);
+                    $db->close();
+                    return;
+                }
+
                 $data = json_decode(json_encode($result));
                 if ($type === SimpleAsyncResponse::YIELD_TYPE_SLOWQUERY) {
                     $value = $data;
@@ -81,7 +98,7 @@ class SimpleAsyncResponse
                     $last_generator->send($value);
                     $caller->inAsyncSlowQueryTaskLoop($request, $response, $worker, $last_generator, $db);
                 } catch (ErrorException $e) {
-                    $caller->exceptionHandle($e, $response, $worker);
+                    $caller->appErrorHandle($request, $response, $worker, $e);
                 }
             });
         } else {
@@ -105,6 +122,7 @@ class SimpleAsyncResponse
             $http_response = $this->generator->getReturn();
             $worker->directLumenResponse($request, $response, $http_response);
             $worker->downCoroutineNum();
+            $this->activated = 0;
         }
     }
 
@@ -115,7 +133,7 @@ class SimpleAsyncResponse
             $value = app('db')->select($sql);
         } else if ($type === SimpleAsyncResponse::YIELD_TYPE_QUERYBUILDER) {
             $current_value = $last_generator->current();
-            $value = $current_value->get($current_value->getQuery()->getRealColumns());
+            $value         = $current_value->get($current_value->getQuery()->getRealColumns());
         } else {
             $value = $last_generator->current();
         }
@@ -123,7 +141,7 @@ class SimpleAsyncResponse
             $last_generator->send($value);
             $this->inSlowQueryTaskLoop($request, $response, $worker, $last_generator);
         } catch (ErrorException $e) {
-            $this->exceptionHandle($e, $response, $worker);
+            $this->appErrorHandle($request, $response, $worker, $e);
         }
 
     }
@@ -166,10 +184,33 @@ class SimpleAsyncResponse
         $worker->directLumenResponse($request, $response, $http_response);
     }
 
-    public function exceptionHandle(ErrorException $e, SwooleHttpResponse $response, $worker)
+    public function appErrorHandle(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, ErrorException $e)
     {
+        if ($this->activated) {
+            $worker->downCoroutineNum();
+        }
+
         $worker->logServerError($e);
         $response->status(500);
         $response->end('check server logs to get more info!');
+        $worker->logHttpRequest($request, 500);
+        $this->activated = null;
+        $this->generator = null;
+        $this->scheduler = null;
+    }
+
+    public function dbErrorHandle(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, ErrorException $e)
+    {
+        if ($this->activated) {
+            $worker->downCoroutineNum();
+        }
+
+        $worker->logServerError($e);
+        $response->status(500);
+        $response->end('check server logs to get more info!');
+        $worker->logHttpRequest($request, 500);
+        $this->activated = null;
+        $this->generator = null;
+        $this->scheduler = null;
     }
 }
