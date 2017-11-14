@@ -39,7 +39,7 @@ class SimpleAsyncResponse
                 break;
             }
         }
-        $last_generator  = $temp1 instanceof Generator ? $temp1 : $this->generator();
+        $last_generator  = $temp1 instanceof Generator ? $temp1 : $this->generator;
         $current_value   = $temp1 instanceof Generator ? $temp2 : $temp1;
         $this->scheduler = $scheduler;
 
