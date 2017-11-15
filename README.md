@@ -27,7 +27,7 @@ $ vendor/bin/swoole-http status
 
 ## \*Coroutine for Slow Query
 
-edit vendor/breeze2/lumen-swoole-http/bootstrap/swoole.php 
+edit `vendor/breeze2/lumen-swoole-http/bootstrap/swoole.php`
 
 ```php
 ...
@@ -44,7 +44,6 @@ $app->withEloquent();
 in your controller
 
 ```php
-
 pubilc function test() {
     $results = yield new \BL\SwooleHttp\Database\SlowQuery('select sleep(1);');
     $results = yield User::select('*')->yieldGet(); // User extends \BL\SwooleHttp\Database\Model
