@@ -26,7 +26,7 @@ class Service
 
     protected $coroutineNum     = 0;
     public $mysqlReadConfig     = null;
-    public $mysqlConnectTimeout = 3;
+    public $mysqlConnectTimeout = 15;
     public $maxCoroutineNum;
 
     public function __construct(Application $app, array $config, array $setting)
@@ -69,7 +69,7 @@ class Service
     {
         $this->reloadApplication();
         if ($this->config['request_log_path']) {
-            $this->workLogFile        = $this->config['request_log_path'] . '/' . $worker_id . '_' . date('Y-m-d') . '.log';
+            $this->workLogFile        = $this->config['request_log_path'] . '/'. date('Y-m-d') . '_' . $worker_id . '.log';
             @$this->workLogFileStream = fopen($this->workLogFile, 'a');
         }
         $this->mysqlReadConfig = $this->getMySQLConfig();

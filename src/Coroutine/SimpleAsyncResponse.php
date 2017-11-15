@@ -56,7 +56,11 @@ class SimpleAsyncResponse
                 $this->activated = 1;
                 $caller          = $this;
                 $db->connect($config, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
-
+                    if (!$result && $db->connect_errno == 110) {
+                        $worker->downCoroutineNum();
+                        $caller->activated = 0;
+                        $caller->runNormalTask($request, $response, $worker, $last_generator);
+                    }
                     if ($result === false) {
                         $e = new ErrorException(sprintf("Async DB: %s %s", $db->connect_errno, $db->connect_error));
                         $caller->dbErrorHandle($request, $response, $worker, $e);
