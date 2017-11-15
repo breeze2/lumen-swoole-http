@@ -18,7 +18,7 @@
 - 框架样板
     - [与Dingo](/4_work_with_dingo.md)
 - 其他
-    - [运行流程](5_work_flow.md)
+    - [运行流程](/5_work_flow.md)
     - [JWT鉴权](/5_json_web_token.md)
 - [更新日志](/changelog.md)
     
