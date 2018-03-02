@@ -115,6 +115,7 @@ class SimpleAsyncResponse
     public function inAsyncSlowQueryTaskLoop(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, $last_generator, $db)
     {
         if ($last_generator->valid()) {
+            $current_value = $last_generator->current();
             $parse = $this->parseValueType($current_value);
             $type  = $parse['type'];
             $sql   = $parse['sql'];
@@ -153,6 +154,7 @@ class SimpleAsyncResponse
     public function inSlowQueryTaskLoop(SwooleHttpRequest $request, SwooleHttpResponse $response, $worker, $last_generator)
     {
         if ($last_generator->valid()) {
+            $current_value = $last_generator->current();
             $parse = $this->parseValueType($current_value);
             $type  = $parse['type'];
             $sql   = $parse['sql'];
