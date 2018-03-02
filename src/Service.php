@@ -2,6 +2,7 @@
 namespace BL\SwooleHttp;
 
 use BL\SwooleHttp\Coroutine\SimpleAsyncResponse;
+use BL\SwooleHttp\Database\Connection;
 use ErrorException;
 use Generator;
 use Illuminate\Http\Request as IlluminateRequest;
@@ -24,10 +25,9 @@ class Service
     protected $workLogFile;
     protected $workLogFileStream;
 
-    protected $coroutineNum     = 0;
-    public $mysqlReadConfig     = null;
-    public $mysqlConnectTimeout = 15;
-    public $maxCoroutineNum;
+    protected $coroutineNum = 0;
+    public $maxCoroutineNum = 0;
+    public $mysqlReadConfig = null;
 
     public function __construct(Application $app, array $config, array $setting)
     {
@@ -69,10 +69,10 @@ class Service
     {
         $this->reloadApplication();
         if ($this->config['request_log_path']) {
-            $this->workLogFile        = $this->config['request_log_path'] . '/'. date('Y-m-d') . '_' . $worker_id . '.log';
+            $this->workLogFile        = $this->config['request_log_path'] . '/' . date('Y-m-d') . '_' . $worker_id . '.log';
             @$this->workLogFileStream = fopen($this->workLogFile, 'a');
         }
-        $this->mysqlReadConfig = $this->getMySQLConfig();
+        $this->mysqlReadConfig = Connection::getMySQLReadConfig();
         $this->coroutineNum    = 0;
         $this->maxCoroutineNum = $this->config['max_coroutine'];
     }
@@ -266,33 +266,6 @@ class Service
         $bootstrap = $this->config['bootstrap'];
         require $root_dir . '/vendor/autoload.php';
         $this->app = require $bootstrap;
-    }
-
-    protected function getMySQLConfig($driver = 'mysql')
-    {
-        $config = config('database.connections.' . $driver);
-
-        if (isset($config['read'])) {
-            return array(
-                'host'     => isset($config['read']['host']) ? $config['read']['host'] : $config['host'],
-                'port'     => isset($config['read']['port']) ? $config['read']['port'] : $config['port'],
-                'user'     => isset($config['read']['username']) ? $config['read']['username'] : $config['username'],
-                'password' => isset($config['read']['password']) ? $config['read']['password'] : $config['password'],
-                'database' => isset($config['read']['database']) ? $config['read']['database'] : $config['database'],
-                'charset'  => isset($config['read']['charset']) ? $config['read']['charset'] : $config['charset'],
-                'timeout'  => $this->mysqlConnectTimeout,
-            );
-        }
-
-        return array(
-            'host'     => $config['host'],
-            'port'     => $config['port'],
-            'user'     => $config['username'],
-            'password' => $config['password'],
-            'database' => $config['database'],
-            'charset'  => $config['charset'],
-            'timeout'  => $this->mysqlConnectTimeout,
-        );
     }
 
     public function upCoroutineNum($step = 1)
