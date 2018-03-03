@@ -24,6 +24,17 @@ trait SimpleAsyncMySQL
         $sql           = $this->getYieldSQL($current_value);
         $type          = $this->getYieldType($current_value);
         $caller        = $this;
+
+        if($sql===false) {
+            $value = $last_generator->current();
+            try {
+                $last_generator->send($value);
+                $caller->inAsyncMySQLTaskLoop($request, $response, $worker, $last_generator, $db);
+            } catch (ErrorException $e) {
+                $caller->appErrorHandle($request, $response, $worker, $e);
+            }
+            return;
+        }
         $db->query($sql, function ($db, $result) use ($request, $response, $worker, $last_generator, $type, $sql, $caller) {
             if ($result === false) {
                 $e = new ErrorException(sprintf("Async DB: %s %s", $db->errno, $db->error));
@@ -68,13 +79,13 @@ trait SimpleAsyncMySQL
 
     public function getYieldSQL($yield)
     {
-        $sql = '';
+        $sql = false;
         if ($yield instanceof SlowQuery) {
             $sql = $yield->getRealSql();
         } else if ($yield instanceof EloquentBuilder) {
             $sql = $yield->getQuery()->getRealSql();
         } else {
-            $sql = '';
+            $sql = false;
         }
         return $sql;
     }
