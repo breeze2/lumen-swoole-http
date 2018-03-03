@@ -1,9 +1,9 @@
 {
     "name": "breeze2/lumen-swoole-http",
     "description": "lumen swoole http server",
-    "keywords": ["lumen", "swoole", "performance"],
+    "keywords": ["lumen", "swoole", "performance", "yield", "coroutine"],
     "type": "library",
-    "version": "0.2.0",
+    "version": "0.3.2",
     "license": "MIT",
     "minimum-stability": "stable",
     "prefer-stable": true,

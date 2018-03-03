@@ -29,6 +29,7 @@ class Connection
             'password' => $config['password'],
             'database' => $config['database'],
             'charset'  => $config['charset'],
+            'strict_type' => $config['strict'],
             'timeout'  => $config['charset'] ? $config['charset'] : self::DEFAULT_TIMEOUT,
         );
     }
