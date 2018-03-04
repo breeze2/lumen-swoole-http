@@ -69,7 +69,7 @@ class UserController extends Controller
 }
 ```
 
-## 测试效果
+## 测试结果
 1. 16worker的Swoole服务器，并发执行`select sleep(1);`请求的最大效率是15.72rps；
 2. 16worker x 10coroutine的Swoole服务器，并发执行`select sleep(1);`请求的最大效率是151.93rps。
 
