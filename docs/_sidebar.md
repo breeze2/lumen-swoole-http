@@ -1,8 +1,9 @@
 
 - 写在最前
     - [目前PHP存在的问题](/0_php_defects.md)
-    - [为什么选择Lumen+Swoole](0_why_lumen_and_swoole.md)
-    - [使用Lumen+Swoole之后](0_after_lumen_with_swoole.md)
+    - [为什么选择Lumen+Swoole](/0_why_lumen_and_swoole.md)
+    - [使用Lumen+Swoole之后](/0_after_lumen_with_swoole.md)
+    - [存在价值](/0_meaning_of_existence.md)
 - 开始
     - [安装](/1_installation.md)
     - [使用](/1_usage.md)
