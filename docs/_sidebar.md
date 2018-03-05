@@ -17,7 +17,7 @@
     - [存在的风险](/3_risks.md)
     - [慢查询协程](/3_coroutine_for_slow_query.md) 
 - 框架样板
-    - [与supervisor](/4_work_with_supervisor.md)
+    - [与Supervisor](/4_work_with_supervisor.md)
     - [与Dingo](/4_work_with_dingo.md)
 - 其他
     - [运行流程](/5_work_flow.md)
