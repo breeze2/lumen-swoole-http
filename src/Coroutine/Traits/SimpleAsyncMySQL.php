@@ -7,7 +7,6 @@ use BL\SwooleHttp\Database\EloquentBuilder;
 use BL\SwooleHttp\Database\SlowQuery;
 use BL\SwooleHttp\Service;
 use ErrorException;
-use Generator;
 use swoole_http_request as SwooleHttpRequest;
 use swoole_http_response as SwooleHttpResponse;
 
@@ -25,7 +24,7 @@ trait SimpleAsyncMySQL
         $type          = $this->getYieldType($current_value);
         $caller        = $this;
 
-        if($sql===false) {
+        if ($sql === false) {
             $value = $last_generator->current();
             try {
                 $last_generator->send($value);
@@ -64,13 +63,11 @@ trait SimpleAsyncMySQL
     public function inAsyncMySQLTaskLoop(SwooleHttpRequest $request, SwooleHttpResponse $response, Service $worker, $last_generator, $db)
     {
         if ($last_generator->valid()) {
-            // $current_value = $last_generator->current();
             $this->runAsyncMySQLTask($request, $response, $worker, $last_generator, $db);
         } else {
             $db->close();
-            $final_value = $this->scheduler->fullRun($last_generator->getReturn());
-            $this->generator->valid() && $this->generator->send($final_value);
-            $http_response = $this->generator->getReturn();
+            $final_value   = $this->scheduler->fullRun($last_generator->getReturn());
+            $http_response = $final_value;
             $worker->directLumenResponse($request, $response, $http_response);
             $worker->downCoroutineNum();
             $this->activated = 0;

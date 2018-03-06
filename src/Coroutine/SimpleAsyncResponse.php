@@ -31,23 +31,17 @@ class SimpleAsyncResponse
 
     public function process(SwooleHttpRequest $request, SwooleHttpResponse $response, Service $worker)
     {
-        $temp1     = $this->generator->current();
-        $temp2     = null;
         $scheduler = new SimpleSerialScheduler();
-        while ($temp1 instanceof Generator) {
-            $temp2 = $temp1->current();
-            if ($temp2 instanceof Generator) {
-                $scheduler->addTask($temp1);
-                $temp1 = $temp2;
-            } else {
-                break;
-            }
+        $gen       = $this->generator;
+        while ($gen instanceof Generator) {
+            $scheduler->addTask($gen);
+            $gen = $gen->current();
         }
-        $last_generator  = $temp1 instanceof Generator ? $temp1 : $this->generator;
-        $current_value   = $temp1 instanceof Generator ? $temp2 : $temp1;
+        $last_task       = $scheduler->popTask();
+        $current_value   = $gen;
+        $last_generator  = $last_task->getGenerator();
         $this->scheduler = $scheduler;
-
-        $type = $this->getYieldType($current_value);
+        $type            = $this->getYieldType($current_value);
         if ($type === SimpleAsyncResponse::YIELD_TYPE_SLOWQUERY || $type === SimpleAsyncResponse::YIELD_TYPE_QUERYBUILDER) {
             return $this->processSlowQuery($request, $response, $worker, $last_generator);
         } else {
@@ -93,8 +87,7 @@ class SimpleAsyncResponse
     {
         $this->scheduler->addTask($last_generator);
         $final_value = $this->scheduler->fullRun($last_generator->current());
-        $this->generator->valid() && $this->generator->send($final_value);
-        $http_response = $this->generator->getReturn();
+        $http_response = $final_value;
         $worker->directLumenResponse($request, $response, $http_response);
     }
 

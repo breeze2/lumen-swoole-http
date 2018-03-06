@@ -8,7 +8,7 @@ use SplQueue;
 class SimpleSerialScheduler
 {
     protected $taskNum = 0;
-    protected $taskMap   = []; // taskId => task
+    protected $taskMap = []; // taskId => task
     protected $taskQueue;
 
     public function __construct()
@@ -39,7 +39,7 @@ class SimpleSerialScheduler
     {
         $value = $first;
         while (!$this->taskQueue->isEmpty()) {
-            $task = $this->popTask();
+            $task  = $this->popTask();
             $value = $task->sendValue($value);
 
             if ($task->isFinished()) {

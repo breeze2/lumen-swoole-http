@@ -11,13 +11,18 @@ class SimpleTask
 
     public function __construct($id, Generator $generator)
     {
-        $this->id    = $id;
+        $this->id        = $id;
         $this->generator = $generator;
     }
 
     public function getId()
     {
         return $this->id;
+    }
+
+    public function getGenerator()
+    {
+        return $this->generator;
     }
 
     public function sendValue($value)
