@@ -44,6 +44,8 @@ class SimpleAsyncResponse
         $type            = $this->getYieldType($current_value);
         if ($type === SimpleAsyncResponse::YIELD_TYPE_SLOWQUERY || $type === SimpleAsyncResponse::YIELD_TYPE_QUERYBUILDER) {
             return $this->processSlowQuery($request, $response, $worker, $last_generator);
+        } else if ($current_value instanceof CustomAsyncProcess) {
+            return $this->processCustom($request, $response, $worker, $last_generator);
         } else {
             return $this->processNormal($request, $response, $worker, $last_generator);
         }
@@ -75,6 +77,17 @@ class SimpleAsyncResponse
             // return $this->runAsyncMySQLTask($request, $response, $worker, $last_generator);
         } else {
             return $this->runNormalMySQLTask($request, $response, $worker, $last_generator);
+        }
+    }
+
+    public function processCustom(SwooleHttpRequest $request, SwooleHttpResponse $response, Service $worker, $last_generator)
+    {
+        $current_value = $last_generator->current();
+        if ($worker->canDoCoroutine()) {
+            $worker->upCoroutineNum();
+            return $current_value->runAsyncTask($request, $response, $worker, $this->scheduler, $last_generator);
+        } else {
+            return $current_value->runNormalTask($request, $response, $worker, $this->scheduler, $last_generator);
         }
     }
 
