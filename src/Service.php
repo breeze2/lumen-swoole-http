@@ -224,6 +224,7 @@ class Service
     protected function statsJson($request, $response)
     {
         $stats = $this->server->stats();
+        $stats['coroutine_num'] = $this->coroutineNum;
         $response->header('Content-Type', 'application/json');
         $response->end(json_encode($stats));
         $this->logHttpRequest($request, 200);
