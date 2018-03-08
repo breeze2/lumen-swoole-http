@@ -3,7 +3,7 @@
     "description": "lumen swoole http server",
     "keywords": ["lumen", "swoole", "performance", "yield", "coroutine"],
     "type": "library",
-    "version": "0.3.2",
+    "version": "0.5.0",
     "license": "MIT",
     "minimum-stability": "stable",
     "prefer-stable": true,
