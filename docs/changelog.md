@@ -1,5 +1,10 @@
 # 更新日志
 
+## v0.5.0
+_2017/03/02_
+* Optimize Task Scheduler
+* Custom Post-Processing Coroutine
+
 ## v0.3.2
 _2017/03/02_
 
