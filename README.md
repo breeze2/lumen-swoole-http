@@ -2,6 +2,11 @@
 
 > A bridge from Swoole to Lumen.
 
+## 设计理念
+* [用Swoole HTTP服务器运行Lumen项目的实现方法](https://blog.breezelin.cn/swoole-lumen-run-lumen-with-swoole.html)
+* [在Lumen项目中使用Swoole异步MySQL客户端的实现方法](https://blog.breezelin.cn/swoole-lumen-use-async-mysql-client-in-lumen.html)
+* [在Lumen项目中自定义后置异步协程](https://blog.breezelin.cn/swoole-lumen-define-post-processing-coroutine.html)
+
 ## Require
 * PHP >= 7.0.0
 * Lumen >= 5.5.0
