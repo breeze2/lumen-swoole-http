@@ -10,6 +10,7 @@ use Laravel\Lumen\Application;
 use swoole_http_server as SwooleHttpServer;
 use Symfony\Component\HttpFoundation\BinaryFileResponse as SymfonyBinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use BL\SwooleHttp\Xhgui\Collector as XhguiCollector;
 
 class Service
 {
@@ -28,6 +29,8 @@ class Service
     protected $coroutineNum = 0;
     public $maxCoroutineNum = 0;
     public $mysqlReadConfig = null;
+
+    public $xhguiCollector = null;
 
     public function __construct(Application $app, array $config, array $setting)
     {
@@ -72,6 +75,12 @@ class Service
             $this->workLogFile        = $this->config['request_log_path'] . '/' . date('Y-m-d') . '_' . $worker_id . '.log';
             @$this->workLogFileStream = fopen($this->workLogFile, 'a');
         }
+
+        if ($this->config['xhgui_collect']) {
+            $config_path = $this->config['xhgui_config_path'];
+            $this->xhguiCollector = new XhguiCollector($config_path);
+        }
+
         $this->mysqlReadConfig = Connection::getMySQLReadConfig();
         $this->coroutineNum    = 0;
         $this->maxCoroutineNum = $this->config['max_coroutine'];
@@ -129,6 +138,8 @@ class Service
 
         $http_request = new IlluminateRequest($get, $post, $fastcgi, $cookie, $files, $new_server, $content);
 
+        $this->xhguiCollector && $this->xhguiCollector->setInfo($request->server['request_uri'], $get, $new_server);
+
         return $http_request;
     }
 
@@ -171,12 +182,17 @@ class Service
 
     protected function lumenResponse($request, $response)
     {
+        $this->xhguiCollector && $this->xhguiCollector->collectorEnable();
+
         $http_request  = $this->parseRequest($request);
         $http_response = $this->app->dispatch($http_request);
         if ($http_response instanceof Generator) {
             return (new SimpleAsyncResponse($http_response))->process($request, $response, $this);
+        } else {
+            $this->directLumenResponse($request, $response, $http_response);
+            $this->xhguiCollector && $this->xhguiCollector->collectorDisable();
+            return;
         }
-        return $this->directLumenResponse($request, $response, $http_response);
     }
 
     public function directLumenResponse($request, $response, $http_response)

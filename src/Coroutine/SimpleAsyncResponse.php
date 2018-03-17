@@ -27,6 +27,14 @@ class SimpleAsyncResponse
     {
         $this->generator = $gen;
         $this->activated = 0;
+        $this->xhgui_collecting = 1;
+    }
+
+    public function disableXhguiCollector(Service $worker) {
+        if($this->xhgui_collecting) {
+            $this->xhgui_collecting = 0;
+            $worker->xhguiCollector && $worker->xhguiCollector->collectorDisable();
+        }
     }
 
     public function process(SwooleHttpRequest $request, SwooleHttpResponse $response, Service $worker)
@@ -43,11 +51,15 @@ class SimpleAsyncResponse
         $this->scheduler = $scheduler;
         $type            = $this->getYieldType($current_value);
         if ($type === SimpleAsyncResponse::YIELD_TYPE_SLOWQUERY || $type === SimpleAsyncResponse::YIELD_TYPE_QUERYBUILDER) {
+            $this->disableXhguiCollector($worker);
             return $this->processSlowQuery($request, $response, $worker, $last_generator);
         } else if ($current_value instanceof CustomAsyncProcess) {
+            $this->disableXhguiCollector($worker);
             return $this->processCustom($request, $response, $worker, $last_generator);
         } else {
-            return $this->processNormal($request, $response, $worker, $last_generator);
+            $this->processNormal($request, $response, $worker, $last_generator);
+            $this->disableXhguiCollector($worker);
+            return;
         }
 
     }
