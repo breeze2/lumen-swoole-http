@@ -117,12 +117,14 @@ class Command
         $config['static_resources'] = env(self::CONFIG_PREFIX . 'STATIC_RESOURCES', false);
         $config['pid_file']         = env(self::CONFIG_PREFIX . 'PID_FILE', storage_path('app/swoole-http.pid'));
         // $config['stats']            = env(self::CONFIG_PREFIX . 'STATS', true);
-        $config['stats_uri']        = env(self::CONFIG_PREFIX . 'STATS_URI', '/swoole-http-stats');
-        $config['request_log_path'] = realpath(env(self::CONFIG_PREFIX . 'REQUEST_LOG_PATH'));
-        $config['root_dir']         = base_path();
-        $config['public_dir']       = base_path('public');
-        $config['bootstrap']        = $this->bootstrap;
-        $config['max_coroutine']    = env(self::CONFIG_PREFIX . 'MAX_COROUTINE', 10);
+        $config['stats_uri']         = env(self::CONFIG_PREFIX . 'STATS_URI', '/swoole-http-stats');
+        $config['request_log_path']  = realpath(env(self::CONFIG_PREFIX . 'REQUEST_LOG_PATH'));
+        $config['root_dir']          = base_path();
+        $config['public_dir']        = base_path('public');
+        $config['bootstrap']         = $this->bootstrap;
+        $config['max_coroutine']     = env(self::CONFIG_PREFIX . 'MAX_COROUTINE', 10);
+        $config['xhgui_collect']     = env(self::CONFIG_PREFIX . 'XHGUI_COLLECT', false);
+        $config['xhgui_config_path'] = base_path('config/xhgui.php');
         return $config;
     }
 
