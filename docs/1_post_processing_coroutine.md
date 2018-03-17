@@ -1,5 +1,25 @@
 # \*后置异步协程
 
+## 配置
+按照[说明](/#/1_installation)安装配置lumen-swoole-http后，并未能直接使用后置异步协程，因为默认不开启后置异步协程。除非明确知道当前操作的IO等待时间较长，否则不需要使用后置异步协程。
+
+打开`bootstrap/swoole.php`，从
+```php
+$app = new BL\SwooleHttp\Application(
+    realpath(__DIR__.'/../')
+);
+
+```
+改为：
+```php
+$app = new BL\SwooleHttp\AsyncApplication(
+    realpath(__DIR__.'/../')
+);
+
+```
+
+为了控制协程数量，现提供一个环境参数`SWOOLE_HTTP_MAX_COROUTINE`，可在`.env`中设置，默认值是10。若当前协程数量已到达最大值，新的慢查询会放在主进程里同步阻塞执行。
+
 ## CustomAsyncProcess
 lumen-swoole-http中已经定义了抽象类`CustomAsyncProcess`，在处理用户请求时，若是捕获到`CustomAsyncProcess`类的对象，程序便会按照`CustomAsyncProcess`对象的指定方法执行。部分代码：
 ```php
