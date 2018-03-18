@@ -3,6 +3,7 @@ namespace BL\SwooleHttp;
 
 use BL\SwooleHttp\Coroutine\SimpleAsyncResponse;
 use BL\SwooleHttp\Database\Connection;
+use BL\SwooleHttp\Xhgui\Collector as XhguiCollector;
 use ErrorException;
 use Generator;
 use Illuminate\Http\Request as IlluminateRequest;
@@ -10,7 +11,6 @@ use Laravel\Lumen\Application;
 use swoole_http_server as SwooleHttpServer;
 use Symfony\Component\HttpFoundation\BinaryFileResponse as SymfonyBinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use BL\SwooleHttp\Xhgui\Collector as XhguiCollector;
 
 class Service
 {
@@ -77,8 +77,13 @@ class Service
         }
 
         if ($this->config['xhgui_collect']) {
-            $config_path = $this->config['xhgui_config_path'];
-            $this->xhguiCollector = new XhguiCollector($config_path);
+            try {
+                $config_path          = $this->config['xhgui_config_path'];
+                $this->xhguiCollector = new XhguiCollector($config_path);
+            } catch (ErrorException $error) {
+                $this->logServerError($e);
+                $this->xhguiCollector = null;
+            }
         }
 
         $this->mysqlReadConfig = Connection::getMySQLReadConfig();
@@ -239,7 +244,7 @@ class Service
 
     protected function statsJson($request, $response)
     {
-        $stats = $this->server->stats();
+        $stats                  = $this->server->stats();
         $stats['coroutine_num'] = $this->coroutineNum;
         $response->header('Content-Type', 'application/json');
         $response->end(json_encode($stats));

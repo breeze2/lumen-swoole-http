@@ -75,7 +75,8 @@ class Collector
     {
         try {
             $saver = Saver::factory($this->config);
-            $saver->save($data);
+            $saver && $saver->save($data);
+            unset($saver);
         } catch (Exception $e) {
             var_dump('xhgui - ' . $e->getMessage());
         }
