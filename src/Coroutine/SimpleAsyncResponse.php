@@ -25,13 +25,14 @@ class SimpleAsyncResponse
 
     public function __construct(Generator $gen)
     {
-        $this->generator = $gen;
-        $this->activated = 0;
+        $this->generator        = $gen;
+        $this->activated        = 0;
         $this->xhgui_collecting = 1;
     }
 
-    public function disableXhguiCollector(Service $worker) {
-        if($this->xhgui_collecting) {
+    public function disableXhguiCollector(Service $worker)
+    {
+        if ($this->xhgui_collecting) {
             $this->xhgui_collecting = 0;
             $worker->xhguiCollector && $worker->xhguiCollector->collectorDisable();
         }
@@ -39,6 +40,10 @@ class SimpleAsyncResponse
 
     public function process(SwooleHttpRequest $request, SwooleHttpResponse $response, Service $worker)
     {
+        if (!$worker->xhguiCollector) {
+            $this->xhgui_collecting = 0;
+        }
+
         $scheduler = new SimpleSerialScheduler();
         $gen       = $this->generator;
         while ($gen instanceof Generator) {
@@ -111,7 +116,7 @@ class SimpleAsyncResponse
     public function runNormalTask(SwooleHttpRequest $request, SwooleHttpResponse $response, Service $worker, $last_generator)
     {
         $this->scheduler->addTask($last_generator);
-        $final_value = $this->scheduler->fullRun($last_generator->current());
+        $final_value   = $this->scheduler->fullRun($last_generator->current());
         $http_response = $final_value;
         $worker->directLumenResponse($request, $response, $http_response);
     }
