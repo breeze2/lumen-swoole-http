@@ -10,6 +10,7 @@
     - [配置](/1_configuration.md)
     - [热更新](/1_auto_reload.md)
     - [*后置异步协程](/1_post_processing_coroutine.md)
+    - [*XHGUI性能分析](/1_profiling_with_xhgui.md)
 - 压力测试
     - [静态输出](/2_static_response.md)
     - [数据读写](/2_read_and_write.md)
