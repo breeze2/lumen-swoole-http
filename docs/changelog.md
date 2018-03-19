@@ -1,5 +1,9 @@
 # 更新日志
 
+## v0.6.0
+_2017/03/02_
+* Use XHGUI Collector
+
 ## v0.5.0
 _2017/03/02_
 * Optimize Task Scheduler
